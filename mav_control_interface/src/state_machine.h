@@ -35,6 +35,7 @@
 #include <mav_msgs/eigen_mav_msgs.h>
 #include <ros/ros.h>
 #include <tf/transform_broadcaster.h>
+#include <Eigen/Eigen>
 
 #include <mav_control_interface/position_controller_interface.h>
 #include <mav_control_interface/rc_interface.h>
@@ -144,6 +145,8 @@ class StateMachineDefinition : public msm_front::state_machine_def<StateMachineD
 
   // Now define transition table:
   struct transition_table : boost::mpl::vector<
+
+     //msm_front::Row<PositionHold, OdometryUpdate, InternalTransition, SetOdometryAndCompute, NoGuard>
       //    Start     Event         Next      Action                     Guard
       //  +---------+-------------+---------+---------------------------+----------------------+
       msm_front::Row<Inactive, RcUpdate, RemoteControl, NoAction, euml::And_<RcModeManual, RcOn> >,
@@ -208,12 +211,12 @@ private:
   std::string reference_frame_id_;
   std::shared_ptr<PositionControllerInterface> controller_;
   ros::Publisher command_publisher_;
+  ros::Publisher forces_command_publisher_;
   ros::Publisher state_info_publisher_;
 
   tf::TransformBroadcaster transform_broadcaster_;
   ros::Publisher current_reference_publisher_;
   ros::Publisher predicted_state_publisher_;
-  ros::Publisher full_predicted_state_publisher_;
   Parameters parameters_;
   mav_msgs::EigenOdometry current_state_;
   mav_msgs::EigenTrajectoryPointDeque current_reference_queue_;
@@ -222,6 +225,7 @@ private:
   void PublishStateInfo(const std::string& info);
   void PublishCurrentReference();
   void PublishPredictedState();
+  void PublishForcesCommand(const mav_msgs::Actuators& command) const;
 
   // Implementation of state machine:
 
@@ -341,13 +345,19 @@ private:
     template<class EVT, class FSM, class SourceState, class TargetState>
     void operator()(EVT const& evt, FSM& fsm, SourceState&, TargetState&)
     {
-      mav_msgs::EigenRollPitchYawrateThrust command;
-      fsm.controller_->calculateRollPitchYawrateThrustCommand(&command);
-      fsm.PublishAttitudeCommand(command);
+      //ROS_INFO_STREAM("We are in Compute Command ");
+      //mav_msgs::EigenRollPitchYawrateThrust command;
+      //fsm.controller_->calculateRollPitchYawrateThrustCommand(&command);
+      //fsm.PublishAttitudeCommand(command);
+
+   	  mav_msgs::Actuators turning_velocities_msg;
+      fsm.controller_->calculateForcesCommand(&turning_velocities_msg);
+      fsm.PublishForcesCommand(turning_velocities_msg);
       fsm.PublishCurrentReference();
       fsm.PublishPredictedState();
     }
   };
+
 
   struct SetReferenceFromRc
   {

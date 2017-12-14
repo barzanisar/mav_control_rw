@@ -1,0 +1,39 @@
+#!/usr/bin/env python
+PACKAGE = "mav_modified_rodrigues_nmpc"
+
+from dynamic_reconfigure.parameter_generator_catkin import *
+
+gen = ParameterGenerator()
+
+#Should we add terminal penalties on position and velocity?
+gen.add("q_x",    double_t,    0, "Penality on x axis pos err", 170.0 ,  0.001, 600.0)
+gen.add("q_y",    double_t,    0, "Penality on y axis pos err", 170.0 ,  0.001, 600.0)
+gen.add("q_z",    double_t,    0, "Penality on z axis pos err", 170.0 ,  0.001, 600.0)
+
+gen.add("q_vx",    double_t,    0, "Penality on x axis vel err", 30.0 ,  0.001, 200.0)
+gen.add("q_vy",    double_t,    0, "Penality on y axis vel err", 30.0 ,  0.001, 200.0)
+gen.add("q_vz",    double_t,    0, "Penality on z axis vel err", 30.0 ,  0.001, 200.0)
+
+gen.add("q_mrp1",     double_t,    0, "Penality on mrp1 err", 5.0 ,  0.001, 200.0)
+gen.add("q_mrp2",    double_t,    0, "Penality on mrp2 err", 5.0 ,  0.001, 200.0)
+gen.add("q_mrp3",    double_t,    0, "Penality on mrp3 err", 5.0 ,  0.001, 200.0)
+
+gen.add("q_wx",     double_t,    0, "Penality on x axis ang vel err", 1.0 ,  1.0, 200.0)
+gen.add("q_wy",    double_t,    0, "Penality on y axis ang vel err", 1.0 , 1.0, 200.0)
+gen.add("q_wz",   double_t,    0, "Penality on z axis ang vel err", 1.0 , 1.0, 200.0)
+
+gen.add("r_f1",     double_t,    0, "Penality on u1", 0.1, 0.1, 50.0)
+gen.add("r_f2",    double_t,    0, "Penality on u2", 0.1, 0.1, 50.0)
+gen.add("r_f3",     double_t,    0, "Penality on u3", 0.1, 0.1, 50.0)
+gen.add("r_f4",   double_t,    0, "Penality on u4", 0.1,  0.1, 50.0)
+
+gen.add("force_min",   double_t,    0, "min force cmd [N]", 0.0 ,  -5.0, 0.0)
+gen.add("force_max",   double_t,    0, "max force cmd [N]", 3.0 ,  1.0, 5.0) #control input constraints
+
+gen.add("Ki_xy",   double_t,    0, "integrator gain for xy", 0.2 ,  0.01, 3.0)
+gen.add("Ki_altitude",   double_t,    0, "integrator gain for altitude", 0.2 ,  0.01, 3.0)
+#gen.add("quat_norm_gain",   double_t,    0, "gain for maintaining unit quat norm", 1 ,  0.0, 5)
+
+gen.add("enable_offset_free",   bool_t,   0, "XY offset free MPC",  False) #was true
+gen.add("enable_integrator",   bool_t,   0, "integral action",  False)
+exit(gen.generate(PACKAGE, "Config", "NonLinearMPC"))

@@ -34,6 +34,10 @@ StateMachineDefinition::StateMachineDefinition(const ros::NodeHandle& nh, const 
   command_publisher_ = nh_.advertise<mav_msgs::RollPitchYawrateThrust>(
       mav_msgs::default_topics::COMMAND_ROLL_PITCH_YAWRATE_THRUST, 1);
 
+  forces_command_publisher_ = nh_.advertise<mav_msgs::Actuators>(
+		  "command/motor_speed" , 1);
+
+
   current_reference_publisher_ = nh_.advertise<trajectory_msgs::MultiDOFJointTrajectory>(
       "command/current_reference", 1);
 
@@ -42,8 +46,6 @@ StateMachineDefinition::StateMachineDefinition(const ros::NodeHandle& nh, const 
   private_nh_.param<bool>("use_rc_teleop", use_rc_teleop_, true);
   private_nh_.param<std::string>("reference_frame", reference_frame_id_, "odom");
   predicted_state_publisher_ = nh_.advertise<visualization_msgs::Marker>( "predicted_state", 0 );
-  full_predicted_state_publisher_ = 
-    nh_.advertise<trajectory_msgs::MultiDOFJointTrajectory>( "full_predicted_state", 1 );
 }
 
 void StateMachineDefinition::SetParameters(const Parameters& parameters)
@@ -63,8 +65,18 @@ void StateMachineDefinition::PublishAttitudeCommand (
 
   msg->header.stamp = ros::Time::now();  // TODO(acmarkus): get from msg
   mav_msgs::msgRollPitchYawrateThrustFromEigen(command, msg.get());
-  command_publisher_.publish(msg);
+ command_publisher_.publish(msg);
 }
+
+
+void StateMachineDefinition::PublishForcesCommand(const mav_msgs::Actuators& command_msg) const
+{
+	mav_msgs::Actuators msg = command_msg;
+	msg.header.stamp = ros::Time::now();
+	forces_command_publisher_.publish(msg);
+
+}
+
 
 void StateMachineDefinition::PublishStateInfo(const std::string& info)
 {
@@ -129,21 +141,6 @@ void StateMachineDefinition::PublishPredictedState()
     predicted_state_publisher_.publish(marker_queue);
   }
 
-  if (full_predicted_state_publisher_.getNumSubscribers() > 0) {
-    mav_msgs::EigenTrajectoryPointDeque predicted_state;
-    controller_->getPredictedState(&predicted_state);
-
-    trajectory_msgs::MultiDOFJointTrajectory msg;
-    msgMultiDofJointTrajectoryFromEigen(predicted_state, &msg);
-
-    //add in timestamp information
-    if (!predicted_state.empty()) {
-      msg.header.stamp.fromNSec(predicted_state.front().timestamp_ns -
-                         predicted_state.front().time_from_start_ns);
-    }
-
-    full_predicted_state_publisher_.publish(msg);
-  }
 }
 
 } // end namespace state_machine
