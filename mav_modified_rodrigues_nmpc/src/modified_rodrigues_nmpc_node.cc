@@ -151,10 +151,10 @@ namespace mav_control {
 
 			if (forces[i] >=0)
 			{
-		      (*forces_command).angular_velocities.push_back(sqrt(forces[i]/force_const));
+		      (*forces_command).angular_velocities.push_back(3*sqrt(forces[i]/force_const));
 			}
 		   else {
-			   (*forces_command).angular_velocities.push_back(-sqrt(-forces[i]/force_const));
+			   (*forces_command).angular_velocities.push_back(-3*sqrt(-forces[i]/force_const));
 		        }
 		 }
 
