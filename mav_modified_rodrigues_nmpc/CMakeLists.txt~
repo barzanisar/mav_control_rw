@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(mav_variable_pitch_nmpc)
+project(mav_modified_rodrigues_nmpc)
 
 set(CMAKE_BUILD_TYPE Release)
 
@@ -34,8 +34,8 @@ include_directories(${Eigen_INCLUDE_DIRS})
 #############
 # LIBRARIES #
 #############
-cs_add_library(mav_variable_pitch_nmpc_lib
-  src/variable_pitch_nmpc.cc
+cs_add_library(mav_modified_rodrigues_nmpc_lib
+  src/modified_rodrigues_nmpc.cc
   solver/qpoases/SRC/Bounds.cpp
   solver/qpoases/SRC/Constraints.cpp
   solver/qpoases/SRC/CyclingManager.cpp
@@ -52,7 +52,7 @@ cs_add_library(mav_variable_pitch_nmpc_lib
   solver/acado_auxiliary_functions.c
   )
 
-target_include_directories(mav_variable_pitch_nmpc_lib PUBLIC
+target_include_directories(mav_modified_rodrigues_nmpc_lib PUBLIC
 	solver/
 	solver/qpoases
 	solver/qpoases/INCLUDE
@@ -62,15 +62,15 @@ target_include_directories(mav_variable_pitch_nmpc_lib PUBLIC
 ############
 # BINARIES #
 ############
-cs_add_executable(variable_pitch_nmpc_node
-  src/variable_pitch_nmpc_node.cc
+cs_add_executable(modified_rodrigues_nmpc_node
+  src/modified_rodrigues_nmpc_node.cc
 )
 
-target_link_libraries(mav_variable_pitch_nmpc_lib ${lapacke_LIBRARIES})
+target_link_libraries(mav_modified_rodrigues_nmpc_lib ${lapacke_LIBRARIES})
 
-target_link_libraries(variable_pitch_nmpc_node mav_variable_pitch_nmpc_lib)
+target_link_libraries(modified_rodrigues_nmpc_node mav_modified_rodrigues_nmpc_lib)
 
-add_dependencies(variable_pitch_nmpc_node ${${PROJECT_NAME}_EXPORTED_TARGETS})
+add_dependencies(modified_rodrigues_nmpc_node ${${PROJECT_NAME}_EXPORTED_TARGETS})
 
 
 ##########

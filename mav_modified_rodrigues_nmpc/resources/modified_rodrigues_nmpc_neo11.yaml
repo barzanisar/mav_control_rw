@@ -31,9 +31,9 @@ q_mrp1 : 150
 q_mrp2 : 150
 q_mrp3 : 150
 
-q_wx : 100
-q_wy : 100
-q_wz : 100
+q_wx : 200
+q_wy : 200
+q_wz : 200
 
 r_f1 : 10
 r_f2 : 10

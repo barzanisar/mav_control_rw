@@ -26,7 +26,7 @@ J=diag(inertia);
 inv_J=diag([1/inertia(1), 1/inertia(2), 1/inertia(3)]); 
 l= armlength; 
 c=drag_coefficient; 
-K=1000;
+K=10000;
 
 %references
 q_ID=[cos(yaw_ref/2); 0; 0; sin(yaw_ref/2)];
@@ -36,7 +36,7 @@ u_ss_total= m*g;
 w_B_ID= [angVel_ref;0;0];  
 %% Differential Equation
 logistic_func= 1/(1+exp(-K*(1-e_mrp'*e_mrp)));
-u_mrp=logistic_func * e_mrp + (1-logistic_func) * (-1/(e_mrp'*e_mrp))*e_mrp;
+u_mrp=logistic_func * e_mrp + (1-logistic_func) * (-1/(e_mrp'*e_mrp+ 0.0001))*e_mrp;
 %u_mrp=(1/(1+exp(-K*(1-e_mrp'*e_mrp)))) * e_mrp + (1-(1/(1+exp(-K*(1-e_mrp'*e_mrp))))) * (-1/(e_mrp'*e_mrp))*e_mrp;
 
 S=[0 -u_mrp(3) u_mrp(2);u_mrp(3) 0 -u_mrp(1); -u_mrp(2) u_mrp(1) 0];

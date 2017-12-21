@@ -66,12 +66,19 @@ cs_add_executable(modified_rodrigues_nmpc_node
   src/modified_rodrigues_nmpc_node.cc
 )
 
+
+
 target_link_libraries(mav_modified_rodrigues_nmpc_lib ${lapacke_LIBRARIES})
 
 target_link_libraries(modified_rodrigues_nmpc_node mav_modified_rodrigues_nmpc_lib)
 
 add_dependencies(modified_rodrigues_nmpc_node ${${PROJECT_NAME}_EXPORTED_TARGETS})
 
+cs_add_executable(ref_trajectory_node
+  src/ref_trajectory_node.cpp
+)
+
+#target_link_libraries(ref_trajectory_node mav_modified_rodrigues_nmpc_lib)
 
 ##########
 # EXPORT #

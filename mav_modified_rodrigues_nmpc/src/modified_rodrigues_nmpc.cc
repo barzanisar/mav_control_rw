@@ -47,7 +47,7 @@ NonlinearModelPredictiveControl::NonlinearModelPredictiveControl(const ros::Node
       position_error_integration_(0, 0, 0),
       mpc_queue_(nh, private_nh, ACADO_N+1),
       verbose_(false),
-	  record_to_csv_(false),
+	  record_to_csv_(true),
       solve_time_average_(0),
       received_first_odometry_(false)
 {
@@ -101,7 +101,7 @@ void NonlinearModelPredictiveControl::removeCSVfiles()
 	std::remove("/home/barza/bagfiles/CSVfiles/avgSolveTime.csv");
 	std::remove("/home/barza/bagfiles/CSVfiles/solveTime.csv");
 	std::remove("/home/barza/bagfiles/CSVfiles/fail_Status.csv");
-	std::remove("/home/barza/bagfiles/CSVfiles/fail_Status_State.csv");
+	std::remove("/home/barza/bagfiles/CSVfiles/pred_State.csv");
 	std::remove("/home/barza/bagfiles/CSVfiles/States.csv");
 }
 
@@ -266,7 +266,7 @@ void NonlinearModelPredictiveControl::setOdometry(const mav_msgs::EigenOdometry&
 	 ROS_INFO_STREAM("shadow mrp used");
  }
 
-  angVel_ref_vector_<< angVel_ref_, 0, 0;
+  angVel_ref_vector_<< angVel_ref_, 0, yaw_rate_ref_;
 
   angVel_error_ = odometry_.angular_velocity_B - angVel_ref_vector_;
 
@@ -372,14 +372,17 @@ void NonlinearModelPredictiveControl::calculateForcesCommand(
 
   double u_ref = mass_*kGravity / ACADO_NU;
   for (size_t i = 0; i < ACADO_N; i++) {
-	  reference_.block(i, 0, 1, ACADO_NY) << 0, 0, 0,   0, 0, 0,   0, 0, 0,   0, 0, 0,   Eigen::MatrixXd::Constant(1,ACADO_NU,u_ref);//u_ref, u_ref, u_ref, u_ref; //slack extra 3 zeros
-      acado_online_data_.block(i, ACADO_NOD - 3, 1, 3) << estimated_disturbances.transpose();
+	  //reference_.block(i, 0, 1, ACADO_NY) << 0, 0, 0,   0, 0, 0,   0, 0, 0,   0, 0, 0,   Eigen::MatrixXd::Constant(1,ACADO_NU,u_ref);//u_ref, u_ref, u_ref, u_ref; //slack extra 3 zeros
+	  reference_.block(i, 0, 1, ACADO_NY) <<  position_ref_[0].transpose()-position_ref_[i].transpose(), velocity_ref_[0].transpose()-velocity_ref_[i].transpose(),   0, 0, 0,   0, 0, 0,   0, 0, 0,   Eigen::MatrixXd::Constant(1,ACADO_NU,u_ref);//u_ref, u_ref, u_ref, u_ref; //slack extra 3 zeros
+
+	  acado_online_data_.block(i, ACADO_NOD - 3, 1, 3) << estimated_disturbances.transpose();
   }
 
 
   acado_online_data_.block(ACADO_N, ACADO_NOD - 3, 1, 3) << estimated_disturbances.transpose();
 
-  referenceN_ << 0, 0, 0, 0, 0, 0;
+  //referenceN_ << 0, 0, 0, 0, 0, 0;
+  referenceN_ << position_ref_[0].transpose()-position_ref_[ACADO_N].transpose(), velocity_ref_[0].transpose()-velocity_ref_[ACADO_N].transpose();
 
   x_0 << position_error_, velocity_error_, mrp_error_, angVel_error_;
 
@@ -445,7 +448,6 @@ void NonlinearModelPredictiveControl::calculateForcesCommand(
 		failStatusFile<< states(0) << "," << states(1) << "," << states(2) << "," << states(3) << "," << states(4) << "," << states(5) << "," << states(6) << "," << states(7) << "," << states(8) << "," << states(9) << "," << states(10) << "," << states(11) << std::endl;
 
 		failStatusFile << f1 << "," << f2 << "," << f3  << "," << f4 <<  "," << rotmat(2,2) << "," << acado_status << std::endl;
-		failStatusFile << odometry_.orientation_W_B.w() << "," << odometry_.orientation_W_B.x() << "," << odometry_.orientation_W_B.y()  << "," << odometry_.orientation_W_B.z() << std::endl;
 		failStatusFile << "end" << std::endl;
     }
 
@@ -507,7 +509,7 @@ void NonlinearModelPredictiveControl::calculateForcesCommand(
    static std::ofstream angVelFile("/home/barza/bagfiles/CSVfiles/angVel.csv",  std::ios_base::app);
    static std::ofstream orientationFile("/home/barza/bagfiles/CSVfiles/orientation.csv",  std::ios_base::app);
    static std::ofstream timeFile("/home/barza/bagfiles/CSVfiles/time.csv",  std::ios_base::app);
-   static std::ofstream failStatusState("/home/barza/bagfiles/CSVfiles/fail_Status_State.csv",  std::ios_base::app);
+   static std::ofstream predState("/home/barza/bagfiles/CSVfiles/pred_State.csv",  std::ios_base::app);
    static std::ofstream statesFile("/home/barza/bagfiles/CSVfiles/States.csv",  std::ios_base::app);
    static std::ofstream avgSolveTimeFile("/home/barza/bagfiles/CSVfiles/avgSolveTime.csv",  std::ios_base::app);
    static std::ofstream solveTimeFile("/home/barza/bagfiles/CSVfiles/solveTime.csv",  std::ios_base::app);
@@ -564,15 +566,15 @@ for (size_t i = 0; i < ACADO_N; i++) {
        if (i==0){
           statesFile<< pred_time << "," << states(0) + position_ref.x() << "," << states(1) + position_ref.y() << "," << states(2) + position_ref.z() << "," << states(3) + velocity_ref.x() << "," << states(4) + velocity_ref.y()<< "," << states(5) + velocity_ref.z()<< "," << states(6) << "," << states(7) << "," << states(8) << "," << states(9) + angVel_ref.x() << "," << states(10) + angVel_ref.y() << "," << states(11) + angVel_ref.z()<< std::endl;
       }
-      failStatusState<< pred_time << "," << states(0) + position_ref.x() << "," << states(1) + position_ref.y() << "," << states(2) + position_ref.z() << "," << states(3) + velocity_ref.x() << "," << states(4) + velocity_ref.y()<< "," << states(5) + velocity_ref.z()<< "," << states(6) << "," << states(7) << "," << states(8) << "," << states(9) + angVel_ref.x() << "," << states(10) + angVel_ref.y() << "," << states(11) + angVel_ref.z()<< std::endl;
-      //failStatusState<<  pred_time << "," << states(0) << "," << states(1) << "," << states(2) << "," << states(3) << "," << states(4) << "," << states(5) << "," << states(6) << "," << states(7) << "," << states(8) << "," << states(9) << "," << states(10) << "," << states(11) << std::endl;
+      predState<< pred_time << "," << states(0) + position_ref.x() << "," << states(1) + position_ref.y() << "," << states(2) + position_ref.z() << "," << states(3) + velocity_ref.x() << "," << states(4) + velocity_ref.y()<< "," << states(5) + velocity_ref.z()<< "," << states(6) << "," << states(7) << "," << states(8) << "," << states(9) + angVel_ref.x() << "," << states(10) + angVel_ref.y() << "," << states(11) + angVel_ref.z()<< std::endl;
+      //predState<<  pred_time << "," << states(0) << "," << states(1) << "," << states(2) << "," << states(3) << "," << states(4) << "," << states(5) << "," << states(6) << "," << states(7) << "," << states(8) << "," << states(9) << "," << states(10) << "," << states(11) << std::endl;
       pred_time += prediction_sampling_time_;
     }
 
 states = state_.block(ACADO_N, 0, 1, ACADO_NX).transpose();
-failStatusState<< pred_time << "," << states(0) + position_ref.x() << "," << states(1) + position_ref.y() << "," << states(2) + position_ref.z() << "," << states(3) + velocity_ref.x() << "," << states(4) + velocity_ref.y()<< "," << states(5) + velocity_ref.z()<< "," << states(6) << "," << states(7) << "," << states(8) << "," << states(9) + angVel_ref.x() << "," << states(10) + angVel_ref.y() << "," << states(11) + angVel_ref.z()<< std::endl;
-//failStatusState<<  pred_time << "," << states(0) << "," << states(1) << "," << states(2) << "," << states(3) << "," << states(4) << "," << states(5) << "," << states(6) << "," << states(7) << "," << states(8) << "," << states(9) << "," << states(10) << "," << states(11) << std::endl;
-// failStatusState << "end" << std::endl;
+predState<< pred_time << "," << states(0) + position_ref.x() << "," << states(1) + position_ref.y() << "," << states(2) + position_ref.z() << "," << states(3) + velocity_ref.x() << "," << states(4) + velocity_ref.y()<< "," << states(5) + velocity_ref.z()<< "," << states(6) << "," << states(7) << "," << states(8) << "," << states(9) + angVel_ref.x() << "," << states(10) + angVel_ref.y() << "," << states(11) + angVel_ref.z()<< std::endl;
+//predState<<  pred_time << "," << states(0) << "," << states(1) << "," << states(2) << "," << states(3) << "," << states(4) << "," << states(5) << "," << states(6) << "," << states(7) << "," << states(8) << "," << states(9) << "," << states(10) << "," << states(11) << std::endl;
+// predState << "end" << std::endl;
 
   double diff_time = (ros::WallTime::now() - starting_time).toSec();
 
