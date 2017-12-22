@@ -266,7 +266,8 @@ void NonlinearModelPredictiveControl::setOdometry(const mav_msgs::EigenOdometry&
 	 ROS_INFO_STREAM("shadow mrp used");
  }
 
-  angVel_ref_vector_<< angVel_ref_, 0, yaw_rate_ref_;
+ // angVel_ref_vector_<< angVel_ref_, 0, yaw_rate_ref_;
+ angVel_ref_vector_<< angVel_ref_, 0, 0;
 
   angVel_error_ = odometry_.angular_velocity_B - angVel_ref_vector_;
 
@@ -373,16 +374,18 @@ void NonlinearModelPredictiveControl::calculateForcesCommand(
   double u_ref = mass_*kGravity / ACADO_NU;
   for (size_t i = 0; i < ACADO_N; i++) {
 	  //reference_.block(i, 0, 1, ACADO_NY) << 0, 0, 0,   0, 0, 0,   0, 0, 0,   0, 0, 0,   Eigen::MatrixXd::Constant(1,ACADO_NU,u_ref);//u_ref, u_ref, u_ref, u_ref; //slack extra 3 zeros
-	  reference_.block(i, 0, 1, ACADO_NY) <<  position_ref_[0].transpose()-position_ref_[i].transpose(), velocity_ref_[0].transpose()-velocity_ref_[i].transpose(),   0, 0, 0,   0, 0, 0,   0, 0, 0,   Eigen::MatrixXd::Constant(1,ACADO_NU,u_ref);//u_ref, u_ref, u_ref, u_ref; //slack extra 3 zeros
+	  reference_.block(i, 0, 1, ACADO_NY) << -position_ref_[0].transpose()+position_ref_[i].transpose(), -velocity_ref_[0].transpose()+velocity_ref_[i].transpose(),   0, 0, 0,  0, 0, 0,   Eigen::MatrixXd::Constant(1,ACADO_NU,u_ref);//u_ref, u_ref, u_ref, u_ref; //slack extra 3 zeros
+	 // reference_.block(i, 0, 1, ACADO_NY) <<  state_.block(i, 0, 1, 3) - position_ref_[i].transpose(), velocity_ref_[i].transpose(),   0, 0, 0,   0, 0, 0,   0, 0, 0,   Eigen::MatrixXd::Constant(1,ACADO_NU,u_ref);//u_ref, u_ref, u_ref, u_ref; //slack extra 3 zeros
 
-	  acado_online_data_.block(i, ACADO_NOD - 3, 1, 3) << estimated_disturbances.transpose();
+	  acado_online_data_.block(i, ACADO_NOD - 3, 1, 3) <<  acceleration_ref_[i].transpose();//estimated_disturbances.transpose();
   }
 
+std::cout <<"reference: \n" << reference_ << std::endl;
+  acado_online_data_.block(ACADO_N, ACADO_NOD - 3, 1, 3) << acceleration_ref_[ACADO_N].transpose();//estimated_disturbances.transpose();
 
-  acado_online_data_.block(ACADO_N, ACADO_NOD - 3, 1, 3) << estimated_disturbances.transpose();
-
-  //referenceN_ << 0, 0, 0, 0, 0, 0;
-  referenceN_ << position_ref_[0].transpose()-position_ref_[ACADO_N].transpose(), velocity_ref_[0].transpose()-velocity_ref_[ACADO_N].transpose();
+  referenceN_ << 0, 0, 0, 0, 0, 0;
+  referenceN_ <<-position_ref_[0].transpose()+position_ref_[ACADO_N].transpose(), -velocity_ref_[0].transpose()+velocity_ref_[ACADO_N].transpose();
+//  referenceN_ << -position_ref_[ACADO_N].transpose(), -velocity_ref_[ACADO_N].transpose();
 
   x_0 << position_error_, velocity_error_, mrp_error_, angVel_error_;
 

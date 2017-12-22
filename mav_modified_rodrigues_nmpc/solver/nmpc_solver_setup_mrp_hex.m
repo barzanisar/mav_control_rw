@@ -45,7 +45,9 @@ A=[0.0435778713738291,-0.0871557427476582,0.0435778713738291,0.0435778713738291,
 F_M= A*[f1;f2;f3;f4;f5;f6];
 
 %err_thrust=[0;rotate_quat([eq0;eq13],[0;F_M(1:3)])]-[0; 0; 0; u_ss_total];   %-[0; 0; 0; u_ss_total];
-err_thrust=[0;rotate_quat([eq0;eq13],[0;0;0;F_M(3)])]-[0; 0; 0; u_ss_total];   %-[0; 0; 0; u_ss_total];
+%err_thrust=[0;rotate_quat([eq0;eq13],[0;0;0;F_M(3)])]-[0; 0; 0; u_ss_total];   %-[0; 0; 0; u_ss_total];
+err_thrust=[0;rotate_quat([eq0;eq13],[0;0;0;F_M(3)])]-[0; external_forces(1); external_forces(2); external_forces(3)+ u_ss_total];   %-[0; 0; 0; u_ss_total];
+
 vdot=rotate_quat(q_ID,err_thrust);
 
 % in=[            (e_mrp(1)^2 + 1)/(e_mrp(1)^2 + e_mrp(2)^2 + e_mrp(3)^2 + 1), -(e_mrp(3) - e_mrp(1)*e_mrp(2))/(e_mrp(1)^2 + e_mrp(2)^2 + e_mrp(3)^2 + 1),  (e_mrp(2) + e_mrp(1)*e_mrp(3))/(e_mrp(1)^2 + e_mrp(2)^2 + e_mrp(3)^2 + 1); ...
