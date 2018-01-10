@@ -35,13 +35,14 @@ int main(int argc, char** argv) {
   ros::NodeHandle nh_private("~");
   ros::Publisher trajectory_pub =
       nh.advertise<trajectory_msgs::MultiDOFJointTrajectory>(
-          mav_msgs::default_topics::COMMAND_TRAJECTORY, 10);
+          mav_msgs::default_topics::COMMAND_TRAJECTORY, 1);
  
 ROS_INFO("Start reference trajectory.");
 
-double traj_time= 5; //5sec
+double traj_time= 60; //5sec
 double prediction_sampling_time=0.01;
 int num_points=traj_time/prediction_sampling_time;
+std::cout << " num_points: " <<  num_points << std::endl;
 double radius=2; //meters
 double omega=3.1416/4; //pi/4 rad/sec 
 static const int64_t kNanoSecondsInSecond = 1000000000;
@@ -92,7 +93,7 @@ trajectory_msgs::MultiDOFJointTrajectoryPtr msg(new trajectory_msgs::MultiDOFJoi
 
    position.x()=radius*cos(omega*i*prediction_sampling_time) - radius;
    position.y()=radius*sin(omega*i*prediction_sampling_time);
-   position.z()=5;
+   position.z()=1;
 
    velocity.x()= -radius*omega*sin(omega*i*prediction_sampling_time);
    velocity.y()= radius*omega*cos(omega*i*prediction_sampling_time);
@@ -115,8 +116,11 @@ trajectory_msgs::MultiDOFJointTrajectoryPtr msg(new trajectory_msgs::MultiDOFJoi
     mav_msgs::msgMultiDofJointTrajectoryPointFromEigen(trajectory_point, &msg->points[i]);
   }
 
-  trajectory_pub.publish(msg);
+   ros::spinOnce();
+   ros::Duration(2).sleep();
 
+  trajectory_pub.publish(msg);
+  	
   ros::spin();
   //ros::shutdown();
 
