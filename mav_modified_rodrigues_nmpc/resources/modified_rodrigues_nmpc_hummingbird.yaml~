@@ -17,9 +17,6 @@ inertia: [0.007, 0.007, 0.012]
 drag_coefficient: 0.000100
 force_constant: 8.54858e-06
 
-#0.000100 
-#8.06428e-05
-
 # dynamic config default values:
 q_x : 150
 q_y : 150
@@ -58,7 +55,7 @@ antiwindup_ball: 0.4
 enable_offset_free : false
 enable_integrator : false
 enable_shadow_mrp : true
-record_to_csv : false
+record_to_csv : true
 
 sampling_time: 0.01    #IMPORTANT: set this equal to the rate of odometry msg
 prediction_sampling_time: 0.1 #was 0.01

@@ -136,13 +136,8 @@ namespace mav_control {
 		nonlinear_mpc_.calculateForcesCommand(&normforces, &forces);
 
 		double force_const;
-		if (ACADO_NU ==4) {
-			force_const=8.54858e-06;
-		}  //hummingbird
-		else {
-			force_const=1.269e-05;
-		} //neo11
 
+		force_const = nonlinear_mpc_.getForceConstant();
 
 		(*forces_command).angular_velocities.clear();
 

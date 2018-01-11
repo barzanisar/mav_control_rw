@@ -39,7 +39,7 @@ int main(int argc, char** argv) {
  
 ROS_INFO("Start reference trajectory.");
 
-double traj_time= 60; //5sec
+double traj_time= 120; //5sec
 double prediction_sampling_time=0.01;
 int num_points=traj_time/prediction_sampling_time;
 std::cout << " num_points: " <<  num_points << std::endl;
@@ -89,8 +89,22 @@ trajectory_msgs::MultiDOFJointTrajectoryPtr msg(new trajectory_msgs::MultiDOFJoi
   int64_t time_from_start_ns = 0;
 
 
+
   for (size_t i = 0; i < num_points; ++i) {
 
+   position.x()=radius*cos(omega*i*prediction_sampling_time);
+   position.y()=radius*0.5*sin(2*omega*i*prediction_sampling_time);
+   position.z()=1;
+
+   velocity.x()= -radius*omega*sin(omega*i*prediction_sampling_time);
+   velocity.y()= radius*omega*cos(2*omega*i*prediction_sampling_time);
+   velocity.z()=0;
+
+   acceleration.x()= -radius*omega*omega*cos(omega*i*prediction_sampling_time);
+   acceleration.y()= -2*radius*omega*omega*sin(2*omega*i*prediction_sampling_time);
+   acceleration.z()=0;
+
+  /* //circle
    position.x()=radius*cos(omega*i*prediction_sampling_time) - radius;
    position.y()=radius*sin(omega*i*prediction_sampling_time);
    position.z()=1;
@@ -102,6 +116,7 @@ trajectory_msgs::MultiDOFJointTrajectoryPtr msg(new trajectory_msgs::MultiDOFJoi
    acceleration.x()= -radius*omega*omega*cos(omega*i*prediction_sampling_time);
    acceleration.y()= -radius*omega*omega*sin(omega*i*prediction_sampling_time);
    acceleration.z()=0;
+*/
 
 
     mav_msgs::EigenTrajectoryPoint trajectory_point;

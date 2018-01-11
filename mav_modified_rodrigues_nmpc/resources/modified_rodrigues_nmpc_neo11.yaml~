@@ -11,43 +11,40 @@
 #==================================================================================================================
 
 ## Controller Parameters:
-mass: 3.75  #3.42 actual 
-force: 3.75
+mass: 3.6  #3.42 actual 3.75 
 armlength: 0.2895
 inertia: [0.0608, 0.0688, 0.1489] 
 drag_coefficient: 0.000100
-#force_constant: 1 
-#1.269e-05
-
+force_constant: 1.269e-05
 
 
 # dynamic config default values:
-q_x : 150
-q_y : 150
-q_z : 150
+q_x : 350
+q_y : 350
+q_z : 350
 
-q_vx : 70
-q_vy : 70
-q_vz : 70
+q_vx : 300
+q_vy : 300
+q_vz : 200
 
-q_mrp1 : 150
-q_mrp2 : 150
-q_mrp3 : 150
+q_mrp1 : 10
+q_mrp2 : 10
+q_mrp3 : 10
 
-q_wx : 200
-q_wy : 200
-q_wz : 200
+q_wx : 5
+q_wy : 5
+q_wz : 5
 
-r_f1 : 10
-r_f2 : 10
-r_f3 : 10
-r_f4 : 10
-r_f5 : 10
-r_f6 : 10
+r_f1 : 0.01
+r_f2 : 0.01
+r_f3 : 0.01
+r_f4 : 0.01
+r_f5 : 0.01
+r_f6 : 0.01
 
 
 
-force_min: -8
+force_min: 0.05
 force_max: 8
 
 angVel_ref: 0
@@ -61,7 +58,7 @@ antiwindup_ball: 0.4
 enable_offset_free : false
 enable_integrator : false
 enable_shadow_mrp : true
-record_to_csv : false
+record_to_csv : true
 
 
 sampling_time: 0.01    #IMPORTANT: set this equal to the rate of odometry msg

@@ -130,6 +130,11 @@ class NonlinearModelPredictiveControl
     return mass_;
   }
 
+  double getForceConstant() const
+  {
+    return force_constant_;
+  }
+
   // get reference and predicted state
   bool getCurrentReference(mav_msgs::EigenTrajectoryPoint* reference) const;
   bool getCurrentReference(mav_msgs::EigenTrajectoryPointDeque* reference) const;
@@ -176,6 +181,7 @@ class NonlinearModelPredictiveControl
   Eigen::Vector3d inertia_;
   double drag_coefficient_;
   double armlength_;
+  double force_constant_;
 
   // controller parameters
   // state penalty
@@ -222,14 +228,15 @@ class NonlinearModelPredictiveControl
   bool enable_offset_free_;
 
   // commands
-  Eigen::VectorXd command_f1_f2_f3_f4_;
-
+  Eigen::VectorXd command_forces_;
+  double u_ref_;
 
   // debug info
   bool verbose_;
   double solve_time_average_;
   ros::WallTime loop_start_time_;
   bool record_to_csv_;
+  bool use_error_dynamics_;
 
   // most recent odometry information
   mav_msgs::EigenOdometry odometry_;

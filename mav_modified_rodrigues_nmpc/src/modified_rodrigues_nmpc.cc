@@ -47,7 +47,6 @@ NonlinearModelPredictiveControl::NonlinearModelPredictiveControl(const ros::Node
       position_error_integration_(0, 0, 0),
       mpc_queue_(nh, private_nh, ACADO_N+1),
       verbose_(false),
-	  record_to_csv_(true),
       solve_time_average_(0),
       received_first_odometry_(false)
 {
@@ -57,7 +56,7 @@ NonlinearModelPredictiveControl::NonlinearModelPredictiveControl(const ros::Node
 
   W_.setZero();
   WN_.setZero();
-  command_f1_f2_f3_f4_.setConstant(1, ACADO_NU, 0);
+  command_forces_.setConstant(1, ACADO_NU, 0);
   input_.setZero();
   state_.setZero();
   reference_.setZero();
@@ -70,10 +69,9 @@ NonlinearModelPredictiveControl::NonlinearModelPredictiveControl(const ros::Node
 
   mpc_queue_.initializeQueue(sampling_time_, prediction_sampling_time_);
 
-  if (record_to_csv_)
-  {
-	  removeCSVfiles();
-  }
+  removeCSVfiles();
+
+
 }
 
 NonlinearModelPredictiveControl::~NonlinearModelPredictiveControl()
@@ -98,11 +96,12 @@ void NonlinearModelPredictiveControl::removeCSVfiles()
 	std::remove("/home/barza/bagfiles/CSVfiles/orientation.csv");
 	std::remove("/home/barza/bagfiles/CSVfiles/qnorm.csv");
 	std::remove("/home/barza/bagfiles/CSVfiles/time.csv");
-	std::remove("/home/barza/bagfiles/CSVfiles/avgSolveTime.csv");
-	std::remove("/home/barza/bagfiles/CSVfiles/solveTime.csv");
 	std::remove("/home/barza/bagfiles/CSVfiles/fail_Status.csv");
 	std::remove("/home/barza/bagfiles/CSVfiles/pred_State.csv");
 	std::remove("/home/barza/bagfiles/CSVfiles/States.csv");
+	std::remove("/home/barza/bagfiles/CSVfiles/cost.csv");
+	std::remove("/home/barza/bagfiles/CSVfiles/avgSolveTime.csv");
+	std::remove("/home/barza/bagfiles/CSVfiles/solveTime.csv");
 }
 
 //initializing onlineData parameters
@@ -166,6 +165,21 @@ void NonlinearModelPredictiveControl::initializeParameters()
     abort();
   }
 
+  if (!private_nh_.getParam("record_to_csv", record_to_csv_)) {
+      ROS_ERROR("record_to_csv in nonlinear MPC is not loaded from ros parameter server");
+      abort();
+    }
+
+  if (!private_nh_.getParam("use_error_dynamics", use_error_dynamics_)) {
+      ROS_ERROR("use_error_dynamics in nonlinear MPC is not loaded from ros parameter server");
+      abort();
+    }
+
+  if (!private_nh_.getParam("force_constant", force_constant_)) {
+    ROS_ERROR("force_constant in nonlinear MPC controller is not loaded from ros parameter "
+              "server");
+    abort();
+  }
 
   for (int i = 0; i < ACADO_N + 1; i++) {
     acado_online_data_.block(i, 0, 1, ACADO_NOD) << mass_, inertia_(0), inertia_(1), inertia_(2), drag_coefficient_, armlength_, 0 ,0, 0, 0, 0; //zero for angVel_ref_, yaw_ref_ and 3 external forces
@@ -177,6 +191,8 @@ void NonlinearModelPredictiveControl::initializeParameters()
   if (verbose_) {
     std::cout << "acado online data: " << std::endl << acado_online_data_ << std::endl;
   }
+
+  u_ref_ = mass_*kGravity / ACADO_NU;
 
   initialized_parameters_ = true;
   ROS_INFO("Nonlinear MPC: initialized correctly");
@@ -204,7 +220,7 @@ void NonlinearModelPredictiveControl::applyParameters()
 	  acadoVariables.ubValues[i] = force_max_;
   }
 
-  for (size_t i = 0; i < ACADO_N; i++) {
+  for (size_t i = 0; i < ACADO_N+1; i++) {
 
 	   acado_online_data_.block(i, ACADO_NOD - 5, 1, 1) << angVel_ref_;
   }
@@ -215,10 +231,13 @@ void NonlinearModelPredictiveControl::setOdometry(const mav_msgs::EigenOdometry&
 {
   mpc_queue_.updateQueue();
   mpc_queue_.getQueue(position_ref_, velocity_ref_, acceleration_ref_, yaw_ref_, yaw_rate_ref_);
- 
+
+  //std::cout << "yaw_ref: \n" << yaw_ref_.front() << std::endl;
+  //std::cout << "yaw_rate_ref: \n" << yaw_rate_ref_.front() << std::endl;
 
   for (int i = 0; i < ACADO_N + 1; i++) {
-	  acado_online_data_.block(i, ACADO_NOD-4, 1, 1) << yaw_ref_.front();
+	 // acado_online_data_.block(i, ACADO_NOD-4, 1, 1) << yaw_ref_.front(); //change
+	  acado_online_data_.block(i, ACADO_NOD-4, 1, 1) << yaw_ref_[i]; //change
   }
 
   static mav_msgs::EigenOdometry previous_odometry = odometry;
@@ -255,7 +274,14 @@ void NonlinearModelPredictiveControl::setOdometry(const mav_msgs::EigenOdometry&
   position_error_ = odometry_.position_W - position_ref_.front();
   velocity_error_ = odometry_.getVelocityWorld() - velocity_ref_.front();
 
-  attitude_error_ = quat_desired.conjugate()*odometry_.orientation_W_B; //quaternion multiplication
+  if (use_error_dynamics_){
+	  attitude_error_ = quat_desired.conjugate()*odometry_.orientation_W_B; //quaternion multiplication //change
+  }
+  else {
+	  attitude_error_ = odometry_.orientation_W_B; //change
+  }
+
+
   mrp_error_= attitude_error_.vec() / (1 + attitude_error_.w());
 
   mrp_error_magnitude_=  mrp_error_.transpose() *  mrp_error_;
@@ -266,8 +292,8 @@ void NonlinearModelPredictiveControl::setOdometry(const mav_msgs::EigenOdometry&
 	 ROS_INFO_STREAM("shadow mrp used");
  }
 
- // angVel_ref_vector_<< angVel_ref_, 0, yaw_rate_ref_;
- angVel_ref_vector_<< angVel_ref_, 0, 0;
+ // angVel_ref_vector_<< angVel_ref_, 0, yaw_rate_ref_; //change
+    angVel_ref_vector_<< angVel_ref_, 0, 0; //change
 
   angVel_error_ = odometry_.angular_velocity_B - angVel_ref_vector_;
 
@@ -281,12 +307,19 @@ void NonlinearModelPredictiveControl::setOdometry(const mav_msgs::EigenOdometry&
 
 	  Eigen::VectorXd x0(ACADO_NX);
 
-	  x0 << 0,0,0, 0,0,0, 0,0,0, 0,0,0; //position_error_, velocity_error_, mrp_error_, angVel_error_;
+	  if (use_error_dynamics_){
+		  x0 << position_error_, velocity_error_, mrp_error_, angVel_error_; // 0,0,0, 0,0,0, 0,0,0, 0,0,0; //change
+	    }
+	    else {
+	  	  x0 << odometry_.position_W, odometry_.getVelocityWorld(), mrp_error_, odometry_.angular_velocity_B; //change
+	    }
 
-	  double u_ref = mass_*kGravity / ACADO_NU;
+
+
+
 
 	    for (int i = 0; i < ACADO_N; i++) {
-	    	input_.block(i, 0, 1, ACADO_NU) << Eigen::MatrixXd::Constant(1,ACADO_NU,u_ref);
+	    	input_.block(i, 0, 1, ACADO_NU) << Eigen::MatrixXd::Constant(1,ACADO_NU,u_ref_);
 	    }
 
 	  initializeAcadoSolver(x0);
@@ -368,26 +401,36 @@ void NonlinearModelPredictiveControl::calculateForcesCommand(
         * position_error_integration_;
   }
 
- // Eigen::Vector3d estimated_disturbances_B =
-    //  odometry_.orientation_W_B.toRotationMatrix().transpose() * estimated_disturbances;
 
-  double u_ref = mass_*kGravity / ACADO_NU;
   for (size_t i = 0; i < ACADO_N; i++) {
-	  //reference_.block(i, 0, 1, ACADO_NY) << 0, 0, 0,   0, 0, 0,   0, 0, 0,   0, 0, 0,   Eigen::MatrixXd::Constant(1,ACADO_NU,u_ref);//u_ref, u_ref, u_ref, u_ref; //slack extra 3 zeros
-	  reference_.block(i, 0, 1, ACADO_NY) << -position_ref_[0].transpose()+position_ref_[i].transpose(), -velocity_ref_[0].transpose()+velocity_ref_[i].transpose(),   0, 0, 0,  0, 0, 0,   Eigen::MatrixXd::Constant(1,ACADO_NU,u_ref);//u_ref, u_ref, u_ref, u_ref; //slack extra 3 zeros
-	 // reference_.block(i, 0, 1, ACADO_NY) <<  state_.block(i, 0, 1, 3) - position_ref_[i].transpose(), velocity_ref_[i].transpose(),   0, 0, 0,   0, 0, 0,   0, 0, 0,   Eigen::MatrixXd::Constant(1,ACADO_NU,u_ref);//u_ref, u_ref, u_ref, u_ref; //slack extra 3 zeros
 
-	  acado_online_data_.block(i, ACADO_NOD - 3, 1, 3) <<  acceleration_ref_[i].transpose();//estimated_disturbances.transpose();
+	  if(use_error_dynamics_){
+	 // reference_.block(i, 0, 1, ACADO_NY) << 0, 0, 0,   0, 0, 0,   0, 0, 0,   0, 0, 0,   Eigen::MatrixXd::Constant(1,ACADO_NU,u_ref_);//u_ref_, u_ref_, u_ref_, u_ref_;
+	  reference_.block(i, 0, 1, ACADO_NY) << -position_ref_[0].transpose()+position_ref_[i].transpose(), -velocity_ref_[0].transpose()+velocity_ref_[i].transpose(),   0, 0, 0,  0, 0, 0,   Eigen::MatrixXd::Constant(1,ACADO_NU,0); //change
+	  }
+	  else {
+		  reference_.block(i, 0, 1, ACADO_NY) << position_ref_[i].transpose(), velocity_ref_[i].transpose(),   0, 0, 0,  angVel_ref_vector_.transpose(),   Eigen::MatrixXd::Constant(1,ACADO_NU,0); //change
+	  }
+
+	  acado_online_data_.block(i, ACADO_NOD - 3, 1, 3) <<  acceleration_ref_[i].transpose();  // + estimated_disturbances.transpose();
   }
 
-std::cout <<"reference: \n" << reference_ << std::endl;
-  acado_online_data_.block(ACADO_N, ACADO_NOD - 3, 1, 3) << acceleration_ref_[ACADO_N].transpose();//estimated_disturbances.transpose();
+  acado_online_data_.block(ACADO_N, ACADO_NOD - 3, 1, 3) << acceleration_ref_[ACADO_N].transpose(); //  + estimated_disturbances.transpose();
 
-  referenceN_ << 0, 0, 0, 0, 0, 0;
-  referenceN_ <<-position_ref_[0].transpose()+position_ref_[ACADO_N].transpose(), -velocity_ref_[0].transpose()+velocity_ref_[ACADO_N].transpose();
-//  referenceN_ << -position_ref_[ACADO_N].transpose(), -velocity_ref_[ACADO_N].transpose();
+  if(use_error_dynamics_){
+ // referenceN_ << 0, 0, 0, 0, 0, 0;
+  referenceN_ <<-position_ref_[0].transpose()+position_ref_[ACADO_N].transpose(), -velocity_ref_[0].transpose()+velocity_ref_[ACADO_N].transpose();//change
+  }
+  else{
+	  referenceN_ << position_ref_[ACADO_N].transpose(), velocity_ref_[ACADO_N].transpose();//change
+  }
 
-  x_0 << position_error_, velocity_error_, mrp_error_, angVel_error_;
+  if(use_error_dynamics_){
+	  x_0 << position_error_, velocity_error_, mrp_error_, angVel_error_;//change
+  }
+  else{
+	    x_0 << odometry_.position_W, odometry_.getVelocityWorld(), mrp_error_, odometry_.angular_velocity_B;//change
+  }
 
   Eigen::Map<Eigen::Matrix<double, ACADO_NX, 1>>(const_cast<double*>(acadoVariables.x0)) = x_0;
   Eigen::Map<Eigen::Matrix<double, ACADO_NY, ACADO_N>>(const_cast<double*>(acadoVariables.y)) =
@@ -399,42 +442,31 @@ std::cout <<"reference: \n" << reference_ << std::endl;
 
   ros::WallTime time_before_solving = ros::WallTime::now();
 
-  //ROS_INFO_STREAM("NMPC: befORE");
+
   acado_preparationStep();
 
   int acado_status = acado_feedbackStep();
 
- // ROS_INFO_STREAM("NMPC: AFTER");
 
   solve_time_average_ += (ros::WallTime::now() - time_before_solving).toSec() * 1000.0;
 
-  double f1 = acadoVariables.u[0];
-  double f2 = acadoVariables.u[1];
-  double f3 = acadoVariables.u[2];
-  double f4 = acadoVariables.u[3];
-  double f5 =0;
-  double f6 =0;
-  if (ACADO_NU == 6) {
-	  f5=acadoVariables.u[4];
-	  f6=acadoVariables.u[5];}
+
+  state_ = Eigen::Map<Eigen::Matrix<double, ACADO_N + 1, ACADO_NX, Eigen::RowMajor>>(
+	      acadoVariables.x);
+
+  input_ = Eigen::Map<Eigen::Matrix<double, ACADO_N, ACADO_NU, Eigen::RowMajor>>(
+        acadoVariables.u);
+
+  command_forces_ = input_.block(0, 0, 1, ACADO_NU).transpose();
 
 
-  double norm_uref = normalizeForce(u_ref);
-  Eigen::Matrix3d rotmat=odometry_.orientation_W_B.toRotationMatrix();
-
-  if (std::isnan(f1) || std::isnan(f2) || std::isnan(f3) || std::isnan(f4) || std::isnan(f5) || std::isnan(f6)
+  if (std::isnan(command_forces_(0)) || std::isnan(command_forces_(1)) || std::isnan(command_forces_(2)) || std::isnan(command_forces_(3))
       || acado_status != 0) {
     ROS_WARN_STREAM("Nonlinear MPC: Solver failed with status: " << acado_status);
     ROS_WARN("reinitializing...");
 
     if (record_to_csv_) {
 		static std::ofstream failStatusFile("/home/barza/bagfiles/CSVfiles/fail_Status.csv",  std::ios_base::app);
-
-		state_ = Eigen::Map<Eigen::Matrix<double, ACADO_N + 1, ACADO_NX, Eigen::RowMajor>>(
-			  acadoVariables.x);
-
-		input_ = Eigen::Map<Eigen::Matrix<double, ACADO_N, ACADO_NU, Eigen::RowMajor>>(
-			  acadoVariables.u);
 
 		Eigen::VectorXd states(ACADO_NX);
 		Eigen::VectorXd inputs(ACADO_NU);
@@ -450,42 +482,28 @@ std::cout <<"reference: \n" << reference_ << std::endl;
 		states = state_.block(ACADO_N, 0, 1, ACADO_NX).transpose();
 		failStatusFile<< states(0) << "," << states(1) << "," << states(2) << "," << states(3) << "," << states(4) << "," << states(5) << "," << states(6) << "," << states(7) << "," << states(8) << "," << states(9) << "," << states(10) << "," << states(11) << std::endl;
 
-		failStatusFile << f1 << "," << f2 << "," << f3  << "," << f4 <<  "," << rotmat(2,2) << "," << acado_status << std::endl;
 		failStatusFile << "end" << std::endl;
     }
 
     initializeAcadoSolver (x_0);
 
-    *ref_forces<< Eigen::MatrixXd::Constant(1,ACADO_NU,u_ref);
+    double norm_uref = normalizeForce(u_ref_);
+
+    *ref_forces<< Eigen::MatrixXd::Constant(1,ACADO_NU,u_ref_);
     *ref_normforces << Eigen::MatrixXd::Constant(1,ACADO_NU,norm_uref);
 
     return;
   }
 
-  if (ACADO_NU==4)
-       { command_f1_f2_f3_f4_ << f1, f2, f3, f4; }
-      else
-      { command_f1_f2_f3_f4_ << f1, f2, f3, f4, f5, f6; }
+  Eigen::VectorXd command_normforces(ACADO_NU);
 
-  state_ = Eigen::Map<Eigen::Matrix<double, ACADO_N + 1, ACADO_NX, Eigen::RowMajor>>(
-	      acadoVariables.x);
+  for (size_t i = 0; i < ACADO_NU; i++){
+	  command_normforces(i)= normalizeForce(command_forces_(i));
 
-  input_ = Eigen::Map<Eigen::Matrix<double, ACADO_N, ACADO_NU, Eigen::RowMajor>>(
-        acadoVariables.u);
-
-
-   if (ACADO_NU==4){
-
-	  //ROS_INFO_STREAM("Reached this point: f1 " << command_f1_f2_f3_f4_(0) << "\t" << "f2 : \t" << command_f1_f2_f3_f4_(1) << "\t" << "f3 : \t" << command_f1_f2_f3_f4_(2) << "\t" << "f4 \t" << command_f1_f2_f3_f4_(3));
-	  *ref_forces << f1, f2, f3, f4;
-      *ref_normforces << normalizeForce(f1), normalizeForce(f2), normalizeForce(f3), normalizeForce(f4);
-   }
-     else {
-
-     //ROS_INFO_STREAM("Reached this point: f1 " << command_f1_f2_f3_f4_(0) << "\t" << "f2 : \t" << command_f1_f2_f3_f4_(1) << "\t" << "f3 : \t" << command_f1_f2_f3_f4_(2) << "\t" << "f4 \t" << command_f1_f2_f3_f4_(3)  << "\t" << "f5 \t" << command_f1_f2_f3_f4_(4) << "\t" << "f6 \t" << command_f1_f2_f3_f4_(5));
-     *ref_forces << f1, f2, f3, f4, f5, f6;
-     *ref_normforces << normalizeForce(f1), normalizeForce(f2), normalizeForce(f3), normalizeForce(f4), normalizeForce(f5), normalizeForce(f6);
-   }
+  }
+	  //ROS_INFO_STREAM("Reached this point: f1 " << command_forces_(0) << "\t" << "f2 : \t" << command_forces_(1) << "\t" << "f3 : \t" << command_forces_(2) << "\t" << "f4 \t" << command_forces_(3));
+	  *ref_forces = command_forces_;
+      *ref_normforces = command_normforces;
 
 
    //******************************************* Recording to csv **********************************
@@ -514,11 +532,9 @@ std::cout <<"reference: \n" << reference_ << std::endl;
    static std::ofstream timeFile("/home/barza/bagfiles/CSVfiles/time.csv",  std::ios_base::app);
    static std::ofstream predState("/home/barza/bagfiles/CSVfiles/pred_State.csv",  std::ios_base::app);
    static std::ofstream statesFile("/home/barza/bagfiles/CSVfiles/States.csv",  std::ios_base::app);
-   static std::ofstream avgSolveTimeFile("/home/barza/bagfiles/CSVfiles/avgSolveTime.csv",  std::ios_base::app);
-   static std::ofstream solveTimeFile("/home/barza/bagfiles/CSVfiles/solveTime.csv",  std::ios_base::app);
+   static std::ofstream costFile("/home/barza/bagfiles/CSVfiles/cost.csv",  std::ios_base::app);
 
    Eigen::Vector3d worldvel= odometry_.getVelocityWorld();
-
 
 
 if (initialise_recording)
@@ -531,7 +547,7 @@ if (initialise_recording)
 	positionFile<< odometry_.position_W.x() << "," << odometry_.position_W.y() << "," << odometry_.position_W.z() << std::endl;
 	velocityFile<< worldvel.x() << "," << worldvel.y() << "," << worldvel.z() << std::endl;
 	angVelFile << odometry_.angular_velocity_B.x() << "," << odometry_.angular_velocity_B.y() << "," << odometry_.angular_velocity_B.z() << std::endl;
-	orientationFile << odometry_.orientation_W_B.w() << "," << odometry_.orientation_W_B.x() << "," << odometry_.orientation_W_B.y()  << "," << odometry_.orientation_W_B.z() <<  "," << rotmat(2,2) << std::endl;
+	orientationFile << odometry_.orientation_W_B.w() << "," << odometry_.orientation_W_B.x() << "," << odometry_.orientation_W_B.y()  << "," << odometry_.orientation_W_B.z()  << std::endl;
 	timeFile << time_since_first_command_<< std::endl;
 
 	initialise_recording=false;
@@ -541,15 +557,15 @@ else
 	time_since_first_command_+=(ros::WallTime::now() - loop_start_time_).toSec();
 
 	if (ACADO_NU==4)
-		   {forcesFile << command_f1_f2_f3_f4_(0) << "," << command_f1_f2_f3_f4_(1) << "," << command_f1_f2_f3_f4_(2)  << "," << command_f1_f2_f3_f4_(3) << std::endl;}
+		   {forcesFile << command_forces_(0) << "," << command_forces_(1) << "," << command_forces_(2)  << "," << command_forces_(3) << std::endl;}
     else
-		  {forcesFile << command_f1_f2_f3_f4_(0) << "," << command_f1_f2_f3_f4_(1) << "," << command_f1_f2_f3_f4_(2)  << "," << command_f1_f2_f3_f4_(3) << "," << command_f1_f2_f3_f4_(4) << "," << command_f1_f2_f3_f4_(5) << std::endl;
+		  {forcesFile << command_forces_(0) << "," << command_forces_(1) << "," << command_forces_(2)  << "," << command_forces_(3) << "," << command_forces_(4) << "," << command_forces_(5) << std::endl;
 	}
 
 	positionFile<< odometry_.position_W.x() << "," << odometry_.position_W.y() << "," << odometry_.position_W.z() << std::endl;
 	velocityFile<< worldvel.x() << "," << worldvel.y() << "," << worldvel.z() << std::endl;
 	angVelFile << odometry_.angular_velocity_B.x() << "," << odometry_.angular_velocity_B.y() << "," << odometry_.angular_velocity_B.z() << std::endl;
-	orientationFile << odometry_.orientation_W_B.w() << "," << odometry_.orientation_W_B.x() << "," << odometry_.orientation_W_B.y()  << "," << odometry_.orientation_W_B.z() << "," << rotmat(2,2) << std::endl;
+	orientationFile << odometry_.orientation_W_B.w() << "," << odometry_.orientation_W_B.x() << "," << odometry_.orientation_W_B.y()  << "," << odometry_.orientation_W_B.z()  << std::endl;
 	timeFile << time_since_first_command_<< std::endl;
 
 }
@@ -561,6 +577,10 @@ Eigen::Vector3d position_ref=  position_ref_.front();
 Eigen::Vector3d velocity_ref=  velocity_ref_.front();
 Eigen::Vector3d angVel_ref=  angVel_ref_vector_;
 
+Eigen::VectorXd states_inputs(ACADO_NX+ACADO_NU);
+Eigen::VectorXd statesN(6);
+double cost=0;
+
 double pred_time=time_since_first_command_;
 for (size_t i = 0; i < ACADO_N; i++) {
 	  states = state_.block(i, 0, 1, ACADO_NX).transpose();
@@ -568,9 +588,13 @@ for (size_t i = 0; i < ACADO_N; i++) {
 
        if (i==0){
           statesFile<< pred_time << "," << states(0) + position_ref.x() << "," << states(1) + position_ref.y() << "," << states(2) + position_ref.z() << "," << states(3) + velocity_ref.x() << "," << states(4) + velocity_ref.y()<< "," << states(5) + velocity_ref.z()<< "," << states(6) << "," << states(7) << "," << states(8) << "," << states(9) + angVel_ref.x() << "," << states(10) + angVel_ref.y() << "," << states(11) + angVel_ref.z()<< std::endl;
-      }
+       }
       predState<< pred_time << "," << states(0) + position_ref.x() << "," << states(1) + position_ref.y() << "," << states(2) + position_ref.z() << "," << states(3) + velocity_ref.x() << "," << states(4) + velocity_ref.y()<< "," << states(5) + velocity_ref.z()<< "," << states(6) << "," << states(7) << "," << states(8) << "," << states(9) + angVel_ref.x() << "," << states(10) + angVel_ref.y() << "," << states(11) + angVel_ref.z()<< std::endl;
       //predState<<  pred_time << "," << states(0) << "," << states(1) << "," << states(2) << "," << states(3) << "," << states(4) << "," << states(5) << "," << states(6) << "," << states(7) << "," << states(8) << "," << states(9) << "," << states(10) << "," << states(11) << std::endl;
+      states_inputs<< states , inputs - Eigen::MatrixXd::Constant(ACADO_NU,1,u_ref_);
+      cost+= states_inputs.transpose() * W_ * states_inputs;
+
+
       pred_time += prediction_sampling_time_;
     }
 
@@ -578,22 +602,33 @@ states = state_.block(ACADO_N, 0, 1, ACADO_NX).transpose();
 predState<< pred_time << "," << states(0) + position_ref.x() << "," << states(1) + position_ref.y() << "," << states(2) + position_ref.z() << "," << states(3) + velocity_ref.x() << "," << states(4) + velocity_ref.y()<< "," << states(5) + velocity_ref.z()<< "," << states(6) << "," << states(7) << "," << states(8) << "," << states(9) + angVel_ref.x() << "," << states(10) + angVel_ref.y() << "," << states(11) + angVel_ref.z()<< std::endl;
 //predState<<  pred_time << "," << states(0) << "," << states(1) << "," << states(2) << "," << states(3) << "," << states(4) << "," << states(5) << "," << states(6) << "," << states(7) << "," << states(8) << "," << states(9) << "," << states(10) << "," << states(11) << std::endl;
 // predState << "end" << std::endl;
+statesN = state_.block(ACADO_N, 0, 1, 6).transpose();
+cost+=statesN.transpose() * WN_ * statesN;
+costFile<<cost<<","<< angVel_ref_<<std::endl;
 
-  double diff_time = (ros::WallTime::now() - starting_time).toSec();
+//******************************************* Recording solve time **********************************
+   static std::ofstream avgSolveTimeFile("/home/barza/bagfiles/CSVfiles/avgSolveTime.csv",  std::ios_base::app);
+   static std::ofstream solveTimeFile("/home/barza/bagfiles/CSVfiles/solveTime.csv",  std::ios_base::app);
 
-    static int counter = 0;
-    if (counter > 100) {
-      //ROS_INFO_STREAM("average solve time: " << solve_time_average_ / counter << " ms");
-      avgSolveTimeFile << solve_time_average_ / counter << std::endl;
-      //ROS_INFO_STREAM("Controller loop time : " << diff_time*1000.0 << " ms");
-      solveTimeFile<<diff_time*1000.0<< std::endl;
-      solve_time_average_ = 0.0;
-      counter = 0;
-    }
-    counter++;
-   }
+   double diff_time = (ros::WallTime::now() - starting_time).toSec();
+
+     static int counter = 0;
+     if (counter > 100) {
+       //ROS_INFO_STREAM("average solve time: " << solve_time_average_ / counter << " ms");
+       avgSolveTimeFile << solve_time_average_ / counter << std::endl;
+       //ROS_INFO_STREAM("Controller loop time : " << diff_time*1000.0 << " ms");
+
+       solve_time_average_ = 0.0;
+       counter = 0;
+     }
+     counter++;
+     solveTimeFile<<diff_time*1000.0<< std::endl;
 
 //******************************************* Recording to csv **********************************
+
+   }
+
+
 
 
 } 
@@ -642,7 +677,6 @@ bool NonlinearModelPredictiveControl::getPredictedState(
     (*predicted_state).push_back(pnt);
   }
 
- // ROS_INFO_STREAM("controller.cpp : got predicted state: position=");
   return true;
 }
 

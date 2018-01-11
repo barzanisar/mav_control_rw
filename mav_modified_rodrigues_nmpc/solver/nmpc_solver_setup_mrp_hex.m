@@ -44,9 +44,11 @@ eq13= (2/(1 + e_mrp(1)^2 + e_mrp(2)^2 + e_mrp(3)^2 )) * e_mrp;
 A=[0.0435778713738291,-0.0871557427476582,0.0435778713738291,0.0435778713738291,-0.0871557427476582,0.0435778713738291;-0.0754790873051733,0,0.0754790873051733,-0.0754790873051733,0,0.0754790873051733;0.996194698091746,0.996194698091746,0.996194698091746,0.996194698091746,0.996194698091746,0.996194698091746;0.143469078891783,0.286938157783566,0.143469078891783,-0.143469078891783,-0.286938157783566,-0.143469078891783;-0.248495733955676,0,0.248495733955676,0.248495733955676,0,-0.248495733955676;-0.0419218334972761,0.0419218334972761,-0.0419218334972761,0.0419218334972761,-0.0419218334972761,0.0419218334972761];
 F_M= A*[f1;f2;f3;f4;f5;f6];
 
-%err_thrust=[0;rotate_quat([eq0;eq13],[0;F_M(1:3)])]-[0; 0; 0; u_ss_total];   %-[0; 0; 0; u_ss_total];
-%err_thrust=[0;rotate_quat([eq0;eq13],[0;0;0;F_M(3)])]-[0; 0; 0; u_ss_total];   %-[0; 0; 0; u_ss_total];
-err_thrust=[0;rotate_quat([eq0;eq13],[0;0;0;F_M(3)])]-[0; external_forces(1); external_forces(2); external_forces(3)+ u_ss_total];   %-[0; 0; 0; u_ss_total];
+%err_thrust=[0;rotate_quat([eq0;eq13],[0;F_M(1:3)])]-[0; 0; 0; u_ss_total];   
+err_thrust=[0;rotate_quat([eq0;eq13],[0;0;0;F_M(3)])]-[0; 0; 0; u_ss_total];  
+
+%err_thrust=[0;rotate_quat([eq0;eq13],[0;0;0;F_M(3)])];
+%vdot=rotate_quat(q_ID,err_thrust) -[0; 0; u_ss_total];
 
 vdot=rotate_quat(q_ID,err_thrust);
 
@@ -63,12 +65,12 @@ vdot=rotate_quat(q_ID,err_thrust);
 mq_errdot= 0.25*((1-e_mrp'*e_mrp)*eye(3) + 2*S + 2*e_mrp*e_mrp')*e_w;
 
 M = F_M(4:6); %moments % include sign of ftotal in yawing moment
-%M=[0;0;F_M(6)];
+
 
 
 f = dot([e_p; e_v; e_mrp; e_w]) == ...
     [e_v;...
-    (1/m)* vdot + external_forces; ...
+    (1/m)* vdot - external_forces; ... %+ external_forces
     mq_errdot;... %+0.5*r*e_q*(1/(e_q'*e_q)-1) %baumgarte stabilisation
     inv_J*(M-cross( (e_w+w_B_ID), J*(e_w+w_B_ID) )) + cross(e_w, w_B_ID);...
     ];
@@ -77,7 +79,7 @@ h = [e_p;...
     e_v;...
     e_mrp;...
     e_w;...
-    [f1 f2 f3 f4 f5 f6]' - u_ss];
+    [f1 f2 f3 f4 f5 f6]' - u_ss]; %- u_ss
 
 hN = [e_p;...
     e_v];
@@ -85,7 +87,7 @@ hN = [e_p;...
 %% MPCexport
 acadoSet('problemname', 'mav_modified_rodrigues_nmpc'); %'barza_mpc'
 
-N = 20; %40
+N = 15; %40
 ocp = acado.OCP( 0.0, N*Ts, N );
 
 W_mat = eye(length(h));
@@ -97,7 +99,7 @@ ocp.minimizeLSQ( W, h );
 ocp.minimizeLSQEndTerm( WN, hN );
 ocp.subjectTo(-8.0 <= [f1; f2; f3; f4; f5; f6] <= 8.0);
 %ocp.subjectTo(-5 <= e_w <= 5);
-ocp.subjectTo(-2.5 <= e_mrp <= 2.5);
+%ocp.subjectTo(-2.5 <= e_mrp <= 2.5);
 %ocp.subjectTo(cos(65*pi/180) <= R_DB(3,3)  );
 ocp.setModel(f);
 

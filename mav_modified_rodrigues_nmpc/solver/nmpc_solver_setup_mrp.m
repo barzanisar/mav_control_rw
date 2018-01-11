@@ -78,7 +78,7 @@ hN = [e_p;...
 %% MPCexport
 acadoSet('problemname', 'mav_modified_rodrigues_nmpc'); 
 
-N = 20; %40
+N = 15; %40
 ocp = acado.OCP( 0.0, N*Ts, N );
 
 W_mat = eye(length(h));
@@ -88,7 +88,7 @@ WN = acado.BMatrix(WN_mat);
 
 ocp.minimizeLSQ( W, h );
 ocp.minimizeLSQEndTerm( WN, hN );
-ocp.subjectTo(-6.0 <= [f1; f2; f3; f4] <= 6.0);
+ocp.subjectTo(0.05 <= [f1; f2; f3; f4] <= 6.0);
 %ocp.subjectTo(-5 <= e_w <= 5);
 %ocp.subjectTo(cos(65*pi/180) <= R_DB(3,3)  );
 ocp.setModel(f);
