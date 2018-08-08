@@ -19,6 +19,7 @@
 #include <mav_msgs/default_topics.h>
 #include <mav_msgs/AttitudeThrust.h>
 #include <mav_msgs/RollPitchYawrateThrust.h>
+#include <mav_msgs/Actuators.h>
 #include <trajectory_msgs/MultiDOFJointTrajectory.h>
 
 #include "mav_control_interface_impl.h"
@@ -72,7 +73,7 @@ MavControlInterfaceImpl::MavControlInterfaceImpl(ros::NodeHandle& nh, ros::NodeH
     ROS_WARN("rc_teleop_max_carrot_distance_yaw_ was limited to pi/2. This is by far enough.");
   }
 
-  interface_nh.param("rc_max_roll_pitch_command", p.rc_max_roll_pitch_command_,
+  interface_nh.param("rc_max_roll_pitch_command", p.rc_max_roll_pitch_command_, 
                      Parameters::kDefaultRcMaxRollPitchCommand);
   interface_nh.param("rc_max_yaw_rate_command", p.rc_max_yaw_rate_command_,
                      Parameters::kDefaultRcMaxYawRateCommand);
@@ -101,7 +102,7 @@ void MavControlInterfaceImpl::RcUpdatedCallback(const RcInterfaceBase& rc_interf
 
 void MavControlInterfaceImpl::CommandPoseCallback(const geometry_msgs::PoseStampedConstPtr& msg)
 {
-
+  //ROS_INFO_STREAM("command pose callback");
   mav_msgs::EigenTrajectoryPoint reference;
   mav_msgs::eigenTrajectoryPointFromPoseMsg(*msg, &reference);
 

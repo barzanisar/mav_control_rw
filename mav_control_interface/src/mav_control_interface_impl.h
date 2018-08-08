@@ -69,7 +69,8 @@ class MavControlInterfaceImpl
   bool TakeoffCallback(std_srvs::EmptyRequest& request, std_srvs::EmptyResponse& response);
   bool BackToPositionHoldCallback(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response);
 
-  void publishAttitudeCommand(const mav_msgs::RollPitchYawrateThrust& command);
+ // void publishAttitudeCommand(const mav_msgs::RollPitchYawrateThrust& command);
+ // void publishForcesCommand(const mav_msgs::Actuators& command);
 };
 
 } /* namespace mav_control_interface */

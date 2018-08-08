@@ -49,4 +49,10 @@ bool PositionControllerInterface::calculateAttitudeThrustCommand(
   return false;
 }
 
+bool PositionControllerInterface::calculateForcesCommand(mav_msgs::Actuators* forces_command) {
+	ROS_WARN_STREAM_THROTTLE(1, "calculateForcesCommand() not implemented for controller "
+		<< this->getName());
+	return false;
+}
+
 } /* namespace mav_flight_manager */

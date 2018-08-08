@@ -51,6 +51,8 @@ class PositionControllerInterface {
       mav_msgs::EigenRollPitchYawrateThrust* attitude_thrust_command);
 
   virtual bool calculateAttitudeThrustCommand(mav_msgs::EigenAttitudeThrust* attitude_thrust_command);
+
+  virtual bool calculateForcesCommand(mav_msgs::Actuators* forces_command);
 };
 
 } /* namespace mav_flight_manager */

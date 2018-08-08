@@ -1,0 +1,57 @@
+#==================================================================================================================
+#
+# Project:	Nonlinear MPC for Hexacopter trajectory tracking.
+#
+# function:	NMPC Position controller parameters.
+#
+# Author:	Mina Kamel	mina.kamel@ethz.ch
+#
+# Generated:	20-Dec-2015 02:37:59
+#
+#==================================================================================================================
+
+## Controller Parameters:
+mass: 0.716
+armlength: 0.17
+inertia: [0.007, 0.007, 0.012]
+drag_coefficient: 0.000100
+force_constant: 8.54858e-06
+
+# dynamic config default values:
+q_x : 150
+q_y : 150
+q_z : 150
+
+q_vx : 70
+q_vy : 70
+q_vz : 70
+
+q_q1 : 150
+q_q2 : 150
+q_q3 : 150
+
+q_wx : 100
+q_wy : 100
+q_wz : 100
+
+r_f : 10
+
+
+
+force_min: 0.05
+force_max: 6.0
+
+angVel_ref: 0
+
+Ki_xy: 0.2
+Ki_altitude: 0.2
+position_error_integration_limit: 2
+antiwindup_ball: 0.4
+
+
+enable_offset_free : false
+enable_integrator : false
+record_to_csv : true
+
+sampling_time: 0.01    #IMPORTANT: set this equal to the rate of odometry msg
+prediction_sampling_time: 0.1
